@@ -1,0 +1,111 @@
+# Docker Networks
+networks:
+  ecommerce-network:
+    driver: bridge
+services:
+  # .NET E-commerce API Service
+  ecommerce-api:
+    build:
+      context: . # Root of your solution, where EcommercePlatform.sln is
+      dockerfile: src/EcommercePlatform.API/Dockerfile # Path to the Dockerfile relative to the context
+    container_name: ecommerce-api
+    ports:
+      - "8080:8080" # Exposes port 8080 of the container to port 8080 on the host
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
+      - ConnectionStrings__MongoDbConnection=mongodb://mongodb_user:mongodb_password@mongodb:27017/ # Points to the mongodb service
+      - MongoDbDatabaseName=EcommercePlatformDB_Docker
+      - ConnectionStrings__RedisConnection=redis:6379 # Points to the redis service
+      # S3/MinIO Configuration (adjust for your chosen setup)
+      - AWS__ServiceURL=http://minio:9000 # For MinIO
+      - AWS__AccessKeyID=minio_access_key # MinIO Access Key
+      - AWS__SecretAccessKey=minio_secret_key # MinIO Secret Key
+      - AWS__S3BucketName=ecommerce-bucket
+      - AWS__ForcePathStyle=true # Important for MinIO
+      - AWS__Region=us-east-1 # MinIO doesn't really use regions but SDK might require it
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio: # Add if using MinIO
+        condition: service_healthy
+    networks:
+      - ecommerce-network
+    restart: unless-stopped
+
+  # MongoDB Service
+  mongodb:
+    image: mongo:latest # Use a specific recent version or 'latest'
+    container_name: mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=mongodb_user
+      - MONGO_INITDB_ROOT_PASSWORD=mongodb_password
+    volumes:
+      - mongo_data:/data/db # Persist MongoDB data
+    networks:
+      - ecommerce-network
+    healthcheck:
+      test: |
+        mongosh --host localhost --port 27017 --eval \
+        'db.runCommand("ping").ok' \
+        --quiet --username mongodb_user --password mongodb_password
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+  # Redis Service
+  redis:
+    image: redis:latest # Use a specific recent version or 'latest'
+    container_name: redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data # Persist Redis data
+    networks:
+      - ecommerce-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  # MinIO Service (S3 Compatible Storage - Optional, for local development)
+  minio:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z # Use a recent MinIO release
+    container_name: minio
+    ports:
+      - "9000:9000" # MinIO API port
+      - "9001:9001" # MinIO Console port
+    environment:
+      - MINIO_ROOT_USER=minio_access_key # Should match AWS__AccessKeyID
+      - MINIO_ROOT_PASSWORD=minio_secret_key # Should match AWS__SecretAccessKey
+      # - MINIO_DEFAULT_BUCKETS=ecommerce-bucket # Optionally create bucket on startup
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data # Persist MinIO data
+    networks:
+      - ecommerce-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+# Docker Volumes (to persist data)
+volumes:
+  mongo_data:
+    driver: local
+  redis_data:
+    driver: local
+  minio_data:
+    driver: local
