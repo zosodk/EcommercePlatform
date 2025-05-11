@@ -1,0 +1,116 @@
+# Rider & IDE specific files
+## Rider
+.idea/
+*.iml
+*.iws
+
+## Visual Studio & VS Code
+.vs/
+.vscode/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Build artifacts
+## General
+**/[Bb]in/
+**/[Oo]bj/
+**/[Pp]ublish/
+**/[Dd]rop/
+
+# .NET Core & .NET 5+ build outputs
+**/artifacts/
+
+# NuGet packages
+## Exclude packages folder, as NuGet restore will download them.
+**/packages/*
+## except build/, content/ and tools/ folders inside packages
+!**/packages/build/
+!**/packages/content/
+!**/packages/tools/
+## RestoreCommand is being deprecated. See https://docs.microsoft.com/en-us/nuget/consume-packages/package-restore-troubleshooting#restorecommand-is-deprecated
+## We still support it for older solutions.
+!**/packages/repositories.config
+
+# User-specific files
+*.DotSettings.user
+*.csproj.user
+*.vbproj.user
+
+# Secrets and environment files - DO NOT COMMIT THESE!
+# Ensure these are managed securely, e.g., through user secrets, environment variables, or Azure Key Vault.
+appsettings.Development.json
+secrets.json
+*.env
+# If you use a local .env file for Docker Compose override, ignore it
+docker-compose.override.yml
+docker-compose.override.yaml
+
+# Log files
+*.log
+logs/
+**/[Ll]ogs/
+livelogs/
+
+# Test results and coverage reports
+**/TestResults/
+**/coverage.cobertura.xml
+**/coverage.opencover.xml
+*.coveragereport
+*.codecov.yml
+
+# ASP.NET Core specific
+Properties/launchSettings.json
+# If you are using User Secrets, the UserSecretsId in the csproj is fine,
+# but the actual secrets.json file should not be committed.
+# The secrets.json file is typically stored in:
+# APPDATA\Microsoft\UserSecrets\<user_secrets_id>\secrets.json (Windows)
+# ~/.microsoft/usersecrets/<user_secrets_id>/secrets.json (Linux/macOS)
+# These paths are usually outside the project directory and thus not typically an issue for .gitignore,
+# but it's good to be aware of.
+
+# Web Root (if you have client-side build artifacts you don't want to commit)
+# Example: wwwroot/dist or wwwroot/lib if these are generated from sources elsewhere
+# wwwroot/dist/
+# wwwroot/lib/
+
+# Entity Framework Core migrations
+# Generally, you DO want to commit your migrations.
+# However, if you have a specific strategy where EF Core design-time files
+# are problematic or should not be shared, you might add specific patterns.
+# For most cases, leave migrations committed.
+# Example (if you absolutely must ignore something specific, which is rare):
+# Migrations/*.Designer.cs
+
+# Docker files (if generated locally and not meant to be shared, unlikely for compose files themselves)
+# This .gitignore already handles common build outputs.
+# Your actual Dockerfile and docker-compose.yml should be committed.
+
+# Other temporary files
+*.swp
+*~
+*.bak
+*.tmp
+
+# Rider Test Runner
+# Might create temporary files or output that should be ignored if not covered by TestResults
+# Usually covered by bin/obj, but good to keep in mind.
+
+# If using LocalDB for development
+*.mdf
+*.ldf
+
+# StyleCop / EditorConfig generated files (if any)
+# Usually, .editorconfig itself IS committed.
+# But sometimes tools might generate local cache files.
+
+# Cache files from various tools
+.cache/
+.npm/ # If you use npm for client-side dependencies
+
+# OS generated files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
