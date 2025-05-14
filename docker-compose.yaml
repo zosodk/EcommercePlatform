@@ -6,7 +6,7 @@ services:
   # .NET E-commerce API Service
   ecommerce-api:
     build:
-      context: . # Root of your solution, where EcommercePlatform.sln is
+      context: . # Root of solution, where EcommercePlatform.sln is
       dockerfile: src/EcommercePlatform.API/Dockerfile # Path to the Dockerfile relative to the context
     container_name: ecommerce-api
     ports:
@@ -17,19 +17,19 @@ services:
       - ConnectionStrings__MongoDbConnection=mongodb://mongodb_user:mongodb_password@mongodb:27017/ # Points to the mongodb service
       - MongoDbDatabaseName=EcommercePlatformDB_Docker
       - ConnectionStrings__RedisConnection=redis:6379 # Points to the redis service
-      # S3/MinIO Configuration (adjust for your chosen setup)
+      # S3/MinIO Configuration (ADJUST FOR THE SETUP)
       - AWS__ServiceURL=http://minio:9000 # For MinIO
       - AWS__AccessKeyID=minio_access_key # MinIO Access Key
       - AWS__SecretAccessKey=minio_secret_key # MinIO Secret Key
       - AWS__S3BucketName=ecommerce-bucket
       - AWS__ForcePathStyle=true # Important for MinIO
-      - AWS__Region=us-east-1 # MinIO doesn't really use regions but SDK might require it
+      - AWS__Region=us-east-1 # MinIO doesn't really use regions but SDK might require it - FIGURE OUT for DK
     depends_on:
       mongodb:
         condition: service_healthy
       redis:
         condition: service_healthy
-      minio: # Add if using MinIO
+      minio: # Add MinIO
         condition: service_healthy
     networks:
       - ecommerce-network
@@ -37,7 +37,7 @@ services:
 
   # MongoDB Service
   mongodb:
-    image: mongo:latest # Use a specific recent version or 'latest'
+    image: mongo:latest # Use a specific recent version  'latest'
     container_name: mongodb
     ports:
       - "27017:27017"
@@ -61,7 +61,7 @@ services:
 
   # Redis Service
   redis:
-    image: redis:latest # Use a specific recent version or 'latest'
+    image: redis:latest # Use a specific recent version  'latest'
     container_name: redis
     ports:
       - "6379:6379"
@@ -87,7 +87,8 @@ services:
     environment:
       - MINIO_ROOT_USER=minio_access_key # Should match AWS__AccessKeyID
       - MINIO_ROOT_PASSWORD=minio_secret_key # Should match AWS__SecretAccessKey
-      # - MINIO_DEFAULT_BUCKETS=ecommerce-bucket # Optionally create bucket on startup
+      # - MINIO_DEFAULT_BUCKETS=ecommerce-bucket 
+      - # Optionally create bucket on startup - HAS BEEN IN DEVENV
     command: server /data --console-address ":9001"
     volumes:
       - minio_data:/data # Persist MinIO data

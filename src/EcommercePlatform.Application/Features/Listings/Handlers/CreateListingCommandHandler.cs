@@ -1,6 +1,142 @@
-﻿namespace EcommercePlatform.Application.Features.Listings.Handlers;
+﻿using EcommercePlatform.Application.Interfaces.Repositories;
+    using EcommercePlatform.Application.Interfaces.Services; // For ICloudStorageService if constructing URLs
+    using EcommercePlatform.Domain.Entities;
+    using System.Threading.Tasks; // For Task
+    using System.Threading; // For CancellationToken
+    using System.Linq; // For Select
+    using Microsoft.Extensions.Configuration; // To get S3 bucket name
+    using System; // For ApplicationException, ArgumentException, DateTime
+    using System.Collections.Generic;
+    using EcommercePlatform.Application.Features.Listings.Commands; // For List, Dictionary
+    // using MediatR;
+    // // If using MediatR: public class CreateListingCommandHandler : IRequestHandler<CreateListingCommand, string>
 
-public class CreateListingCommandHandler
-{
-    
-}
+    namespace EcommercePlatform.Application.Features.Listings.Handlers;
+
+    public class CreateListingCommandHandler // : IRequestHandler<CreateListingCommand, string>
+    {
+        private readonly IListingRepository _listingRepository;
+        private readonly IUserRepository _userRepository; // To validate seller exists
+        private readonly IConfiguration _configuration; // To get S3 bucket name, etc.
+        // private readonly IUnitOfWork _unitOfWork; // If using a Unit of Work pattern
+
+        public CreateListingCommandHandler(
+            IListingRepository listingRepository,
+            IUserRepository userRepository,
+            IConfiguration configuration)
+        {
+            _listingRepository = listingRepository ?? throw new ArgumentNullException(nameof(listingRepository));
+            _userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
+            _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
+        }
+
+        // public async Task<string> Handle(CreateListingCommand request, CancellationToken cancellationToken)
+        public async Task<string> HandleAsync(CreateListingCommand request) // Simplified signature without MediatR
+        {
+            if (request == null) throw new ArgumentNullException(nameof(request));
+
+            // 1. Validate SellerId (ensure user exists)
+            var seller = await _userRepository.GetByIdAsync(request.SellerId);
+            if (seller == null)
+            {
+                // Consider a more specific exception type or error handling mechanism
+                throw new ApplicationException($"Seller with ID {request.SellerId} not found.");
+            }
+
+            // 2. Construct Image URLs from object keys
+            var s3BucketName = _configuration["AWS:S3BucketName"];
+            var awsRegion = _configuration["AWS:Region"];
+            var serviceUrl = _configuration["AWS:ServiceURL"]; // For MinIO
+
+            string s3BucketBaseUrl;
+            if (!string.IsNullOrEmpty(serviceUrl) && serviceUrl.Contains("minio", StringComparison.OrdinalIgnoreCase))
+            {
+                 s3BucketBaseUrl = $"{serviceUrl.TrimEnd('/')}/{s3BucketName}";
+            }
+            else if(!string.IsNullOrEmpty(s3BucketName) && !string.IsNullOrEmpty(awsRegion))
+            {
+                 s3BucketBaseUrl = $"https://{s3BucketName}.s3.{awsRegion}.amazonaws.com";
+            }
+            else
+            {
+                // Fallback or error if configuration is missing for constructing URLs
+                // This part needs robust configuration handling. For now, I'll assume it's set.
+                s3BucketBaseUrl = "https://your-bucket.s3.your-region.amazonaws.com"; // Placeholder
+                 // _logger.LogWarning("S3 bucket name or region not configured for image URL construction.");
+            }
+
+
+            var imageUrls = request.ImageObjectKeys?
+                .Where(key => !string.IsNullOrWhiteSpace(key))
+                .Select(key => $"{s3BucketBaseUrl.TrimEnd('/')}/{key.TrimStart('/')}")
+                .ToList() ?? new List<string>();
+
+            // 3. Create GeoLocation object if coordinates are provided
+            GeoLocation? location = null;
+            if (request.LocationLongitude.HasValue && request.LocationLatitude.HasValue)
+            {
+                try
+                {
+                    location = GeoLocation.Create(request.LocationLongitude.Value, request.LocationLatitude.Value);
+                }
+                catch (ArgumentOutOfRangeException ex)
+                {
+                    // Handle invalid coordinates, perhaps log and don't set location, or throw an error
+                    // For now, I'll let the exception propagate or be handled by a global handler
+                    throw new ArgumentException("Invalid location coordinates provided.", ex);
+                }
+            }
+
+            // 4. Create ListingItem entity
+            var listingItem = new ListingItem
+            {
+                // Id will be generated by default Guid.NewGuid().ToString() or by DB
+                SellerId = request.SellerId,
+                Title = request.Title,
+                Description = request.Description,
+                Category = request.Category,
+                Price = request.Price,
+                Currency = request.Currency,
+                Condition = request.Condition,
+                ItemSpecifics = request.ItemSpecifics ?? new Dictionary<string, object>(),
+                ImageUrls = imageUrls,
+                Status = ListingStatus.Available, // Default status
+                Tags = request.Tags?.Where(t => !string.IsNullOrWhiteSpace(t)).ToList(), // Clean up tags
+                Location = location,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+                Version = 1
+            };
+
+            // 5. Persist to database
+            // The repository's CreateAsync just adds to the context.
+            // SaveChangesAsync would be called by a UnitOfWork or the service orchestrating the transaction.
+            var createdListing = await _listingRepository.CreateAsync(listingItem);
+            // Example: await _unitOfWork.Listings.AddAsync(listingItem);
+            // await _unitOfWork.CompleteAsync(cancellationToken);
+
+            // For now, assuming the handler is responsible or this is a simplified setup
+            // If _listingRepository.CreateAsync also calls SaveChanges, then it's fine.
+            // However, for transactional control, SaveChanges should be at a higher level.
+            // Let's assume for now this handler is the unit of work boundary for this command.
+            // This would require the repository or a UoW to actually save.
+            // To make this runnable without a full UoW, the repo would need to save.
+            // For now, we return the ID assuming it's set upon AddAsync or by the DB.
+            // If CreateAsync doesn't set the ID (e.g. if DB generates it on save), this might be an issue.
+            // For MongoDB with string Guids, it's usually set on creation in C#.
+
+            // If _listingRepository.CreateAsync doesn't save, I'd need something like:
+            // await _dbContext.SaveChangesAsync(cancellationToken); // Assuming DbContext is available or via UoW
+
+            if (string.IsNullOrEmpty(createdListing.Id))
+            {
+                // This indicates an issue if the ID isn't generated before or during CreateAsync
+                throw new ApplicationException("Failed to create listing or retrieve its ID.");
+            }
+
+
+            // 6. Optionally, publish an event (e.g., ListingCreatedEvent) if using domain events/MediatR
+
+            return createdListing.Id; // Return the ID of the newly created listing
+        }
+    }

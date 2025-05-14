@@ -10,4 +10,9 @@
       <ProjectReference Include="..\EcommercePlatform.Domain\EcommercePlatform.Domain.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+      <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.4" />
+      <PackageReference Include="Microsoft.Extensions.Configuration" Version="9.0.4" />
+    </ItemGroup>
+
 </Project>
