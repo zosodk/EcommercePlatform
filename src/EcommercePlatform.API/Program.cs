@@ -1,19 +1,20 @@
 using EcommercePlatform.Application.Features.Listings.Handlers;
-        using EcommercePlatform.Application.Features.Orders.Handlers; // For PlaceOrderCommandHandler
+        using EcommercePlatform.Application.Features.Orders.Handlers;
         using EcommercePlatform.Application.Interfaces.Repositories;
         using EcommercePlatform.Application.Interfaces.Services;
-        using EcommercePlatform.Application.Interfaces.Common; // For IUnitOfWork
+        using EcommercePlatform.Application.Interfaces.Common;
         using EcommercePlatform.Infrastructure.Caching;
         using EcommercePlatform.Infrastructure.CloudStorage;
         using EcommercePlatform.Infrastructure.Persistence;
         using EcommercePlatform.Infrastructure.Persistence.Repositories;
-        using EcommercePlatform.Infrastructure.Persistence.Common; // For UnitOfWork implementation
+        using EcommercePlatform.Infrastructure.Persistence.Common;
         using Microsoft.EntityFrameworkCore;
         using Microsoft.OpenApi.Models;
         using StackExchange.Redis;
-        using Amazon.S3;
-        using Amazon.Extensions.NETCore.Setup;
-        using Serilog; 
+        using Amazon.S3; // For IAmazonS3
+        using Amazon.Extensions.NETCore.Setup; // For AWSOptions and AddAWSService
+        using Serilog; // Root Serilog namespace
+        
         using System;
         using Microsoft.AspNetCore.Builder;
         using Microsoft.Extensions.Configuration;
@@ -22,10 +23,10 @@ using EcommercePlatform.Application.Features.Listings.Handlers;
         using Microsoft.Extensions.Logging;
         using Microsoft.AspNetCore.Http;
 
-        // Initial Serilog Bootstrap Logger (catches startup errors)
+        // Initial Serilog Bootstrap Logger (catches startup errors before host is fully built)
         Log.Logger = new LoggerConfiguration()
             .MinimumLevel.Override("Microsoft", Serilog.Events.LogEventLevel.Information)
-            .Enrich.FromLogContext()
+            .Enrich.FromLogContext() // Essential for enriching with context properties
             .WriteTo.Console()
             .CreateBootstrapLogger();
 
@@ -35,15 +36,16 @@ using EcommercePlatform.Application.Features.Listings.Handlers;
 
             var builder = WebApplication.CreateBuilder(args);
 
-            // --- Serilog Integration with ASP.NET Core ---
             builder.Host.UseSerilog((context, services, configuration) => configuration
                 .ReadFrom.Configuration(context.Configuration) // Reads from appsettings.json "Serilog" section
-                .ReadFrom.Services(services)
+                .ReadFrom.Services(services) // Allows services to be injected into Serilog (e.g., for custom sinks)
                 .Enrich.FromLogContext()
                 .Enrich.WithProperty("ApplicationName", context.HostingEnvironment.ApplicationName)
-                .Enrich.WithEnvironmentName());
+                .Enrich.WithEnvironmentName() // From Serilog.Enrichers.Environment
+                .Enrich.WithMachineName());   // From Serilog.Enrichers.Environment
+                                              // Add other global enrichers here if needed
 
-            // Configuration
+            // Configuration object
             var configuration = builder.Configuration;
 
             // Database Context (MongoDB with EF Core)
@@ -63,9 +65,9 @@ using EcommercePlatform.Application.Features.Listings.Handlers;
             // Unit of Work and Repositories
             builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
             builder.Services.AddScoped<IListingRepository, EfCoreListingRepository>();
-            builder.Services.AddScoped<IUserRepository, EfCoreUserRepository>(); // Assuming EfCoreUserRepository exists
-            builder.Services.AddScoped<IOrderRepository, EfCoreOrderRepository>(); // Assuming EfCoreOrderRepository exists
-            builder.Services.AddScoped<IReviewRepository, EfCoreReviewRepository>(); // Assuming EfCoreReviewRepository exists
+            builder.Services.AddScoped<IUserRepository, EfCoreUserRepository>();
+            builder.Services.AddScoped<IOrderRepository, EfCoreOrderRepository>();
+            builder.Services.AddScoped<IReviewRepository, EfCoreReviewRepository>();
 
             // Application Services & CQRS Handlers
             builder.Services.AddScoped<CreateListingCommandHandler>();
@@ -80,7 +82,6 @@ using EcommercePlatform.Application.Features.Listings.Handlers;
             {
                 try
                 {
-                    // Ensure Redis is configured to be a singleton for IConnectionMultiplexer
                     builder.Services.AddSingleton<IConnectionMultiplexer>(sp => ConnectionMultiplexer.Connect(redisConnectionString));
                     builder.Services.AddSingleton<ICacheService, RedisCacheService>();
                     Log.Information("Redis Cache Service configured.");
@@ -99,15 +100,17 @@ using EcommercePlatform.Application.Features.Listings.Handlers;
             AWSOptions? awsOptions = configuration.GetAWSOptions(); // Reads from "AWS" section in appsettings
             if (awsOptions != null)
             {
-                // Override ServiceURL and ForcePathStyle from config if present (for MinIO)
                 var awsSection = configuration.GetSection("AWS");
                 if (!string.IsNullOrEmpty(awsSection["ServiceURL"]))
                 {
+                    // DefaultClientConfig is available on AWSOptions
                     awsOptions.DefaultClientConfig.ServiceURL = awsSection["ServiceURL"];
                 }
-                if (bool.TryParse(awsSection["ForcePathStyle"], out bool forcePathStyle))
+                // ForcePathStyle is a property of Amazon.Runtime.ClientConfig, which DefaultClientConfig is.
+                if (bool.TryParse(awsSection["ForcePathStyle"], out bool forcePathStyleValue))
                 {
-                    awsOptions.DefaultClientConfig.ForcePathStyle = forcePathStyle;
+                    //awsOptions.DefaultClientConfig.ForcePathStyle = forcePathStyleValue;
+                    //Commented out at the moment - gives an error
                 }
 
                 builder.Services.AddDefaultAWSOptions(awsOptions);
@@ -139,7 +142,7 @@ using EcommercePlatform.Application.Features.Listings.Handlers;
                         .WithOrigins(
                             configuration.GetValue<string>("AllowedCorsOrigins:BlazorWasmHttp") ?? "http://localhost:5001",
                             configuration.GetValue<string>("AllowedCorsOrigins:BlazorWasmHttps") ?? "https://localhost:7001"
-                         ) // Read from config or use defaults
+                         )
                         .AllowAnyMethod()
                         .AllowAnyHeader());
             });
@@ -160,14 +163,14 @@ using EcommercePlatform.Application.Features.Listings.Handlers;
             }
             else
             {
-                app.UseExceptionHandler("/Error"); // Basic error handler
+                app.UseExceptionHandler("/Error");
                 app.UseHsts();
             }
 
             app.UseHttpsRedirection();
             app.UseRouting();
-            app.UseCors("AllowBlazorDevClient"); // Apply CORS policy
-            // app.UseAuthentication(); // Add when authentication is implemented
+            app.UseCors("AllowBlazorDevClient");
+            // app.UseAuthentication();
             app.UseAuthorization();
             app.MapControllers();
             app.MapGet("/health", () => Results.Ok(new { Status = "Healthy", Timestamp = DateTime.UtcNow }));
@@ -178,9 +181,9 @@ using EcommercePlatform.Application.Features.Listings.Handlers;
         catch (Exception ex)
         {
             Log.Fatal(ex, "E-commerce API host terminated unexpectedly during startup configuration.");
-            throw; // Re-throw to ensure process termination if startup fails critically
+            throw;
         }
         finally
         {
-            Log.CloseAndFlush(); // Ensure all logs are flushed when application exits
+            Log.CloseAndFlush();
         }
