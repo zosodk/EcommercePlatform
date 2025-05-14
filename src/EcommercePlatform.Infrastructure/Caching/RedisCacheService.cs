@@ -11,11 +11,7 @@
     {
         private readonly IDatabase _redisDb;
         private readonly ILogger<RedisCacheService> _logger;
-        private static readonly JsonSerializerOptions _serializerOptions = new()
-        {
-            PropertyNameCaseInsensitive = true,
-            // Add other default options if needed
-        };
+        private static readonly JsonSerializerOptions _serializerOptions = new() { PropertyNameCaseInsensitive = true };
 
         public RedisCacheService(IConnectionMultiplexer redisConnection, ILogger<RedisCacheService> logger)
         {
@@ -25,87 +21,38 @@
 
         public async Task<T?> GetAsync<T>(string key)
         {
-            if (string.IsNullOrWhiteSpace(key))
-            {
-                _logger.LogWarning("Cache key cannot be null or whitespace for GetAsync.");
-                return default;
-            }
+            if (string.IsNullOrWhiteSpace(key)) return default;
             try
             {
                 RedisValue redisValue = await _redisDb.StringGetAsync(key);
-                if (redisValue.IsNullOrEmpty)
-                {
-                    _logger.LogInformation("Cache miss for key: {CacheKey}", key);
-                    return default;
-                }
-                _logger.LogInformation("Cache hit for key: {CacheKey}", key);
+                if (redisValue.IsNullOrEmpty) { _logger.LogInformation("Cache miss for key: {Key}", key); return default; }
+                _logger.LogInformation("Cache hit for key: {Key}", key);
                 return JsonSerializer.Deserialize<T>(redisValue.ToString(), _serializerOptions);
             }
-            catch (JsonException jsonEx)
-            {
-                _logger.LogError(jsonEx, "JSON Deserialization error for cache key: {CacheKey}. Value: {RedisValue}", key, await _redisDb.StringGetAsync(key));
-                // Consider removing the corrupted key: await RemoveAsync(key);
-                return default;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting data from Redis for key: {CacheKey}", key);
-                return default; // Protect app from cache failures
-            }
+            catch (Exception ex) { _logger.LogError(ex, "Error getting from Redis for key: {Key}", key); return default; }
         }
 
         public async Task SetAsync<T>(string key, T value, TimeSpan? expiry = null)
         {
-            if (string.IsNullOrWhiteSpace(key))
-            {
-                _logger.LogWarning("Cache key cannot be null or whitespace for SetAsync.");
-                return;
-            }
-            if (value == null)
-            {
-                _logger.LogWarning("Attempted to set null value in cache for key: {CacheKey}. Removing key instead.", key);
-                await RemoveAsync(key); // Or store a specific marker for null if nulls are meaningful in cache
-                return;
-            }
-
+            if (string.IsNullOrWhiteSpace(key)) return;
+            if (value == null) { await RemoveAsync(key); return; } // Or store a specific null marker
             try
             {
                 string jsonValue = JsonSerializer.Serialize(value, _serializerOptions);
-                bool success = await _redisDb.StringSetAsync(key, jsonValue, expiry);
-                if(success)
-                    _logger.LogInformation("Data cached for key: {CacheKey}, Expiry: {Expiry}", key, expiry?.ToString() ?? "N/A");
-                else
-                    _logger.LogWarning("Failed to set cache for key: {CacheKey} (StringSetAsync returned false)", key);
-
+                await _redisDb.StringSetAsync(key, jsonValue, expiry);
+                _logger.LogInformation("Cached data for key: {Key}, Expiry: {Expiry}", key, expiry?.ToString() ?? "N/A");
             }
-            catch (JsonException jsonEx)
-            {
-                _logger.LogError(jsonEx, "JSON Serialization error for cache key: {CacheKey} during SetAsync.", key);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error setting data in Redis for key: {CacheKey}", key);
-            }
+            catch (Exception ex) { _logger.LogError(ex, "Error setting to Redis for key: {Key}", key); }
         }
 
         public async Task RemoveAsync(string key)
         {
-            if (string.IsNullOrWhiteSpace(key))
-            {
-                _logger.LogWarning("Cache key cannot be null or whitespace for RemoveAsync.");
-                return;
-            }
+            if (string.IsNullOrWhiteSpace(key)) return;
             try
             {
-                bool removed = await _redisDb.KeyDeleteAsync(key);
-                if(removed)
-                    _logger.LogInformation("Cache key removed: {CacheKey}", key);
-                else
-                    _logger.LogInformation("Cache key not found for removal or already removed: {CacheKey}", key);
+                await _redisDb.KeyDeleteAsync(key);
+                _logger.LogInformation("Removed key from Redis: {Key}", key);
             }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error removing key from Redis: {CacheKey}", key);
-            }
+            catch (Exception ex) { _logger.LogError(ex, "Error removing from Redis for key: {Key}", key); }
         }
     }

@@ -1,15 +1,14 @@
-﻿namespace EcommercePlatform.Application.Features.Listings.Queries;
+﻿using System;
+using System.Collections.Generic;
 
-public class GetListingByIdQuery
-{
-    public string Id { get; set; } = string.Empty;
-}
+namespace EcommercePlatform.Application.Features.Listings.Queries;
+public class GetListingByIdQuery { public string Id { get; set; } = string.Empty; }
 
 public class ListingItemViewModel
 {
     public string Id { get; set; } = string.Empty;
     public string SellerId { get; set; } = string.Empty;
-    public string SellerUsername { get; set; } = string.Empty; // Denormalized or fetched
+    public string SellerUsername { get; set; } = string.Empty;
     public string Title { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     public string Category { get; set; } = string.Empty;
@@ -24,9 +23,4 @@ public class ListingItemViewModel
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }
-
-public class GeoLocationViewModel
-{
-    public double Longitude { get; set; }
-    public double Latitude { get; set; }
-}
+public class GeoLocationViewModel { public double Longitude { get; set; } public double Latitude { get; set; } }

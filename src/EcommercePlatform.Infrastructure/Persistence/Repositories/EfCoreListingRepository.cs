@@ -1,6 +1,6 @@
 ﻿using EcommercePlatform.Application.Interfaces.Repositories;
 using EcommercePlatform.Domain.Entities;
-using EcommercePlatform.Infrastructure.Persistence; // For AppDbContext
+using EcommercePlatform.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
@@ -29,16 +29,15 @@ using System.Threading.Tasks;
         {
             if (listing == null) throw new ArgumentNullException(nameof(listing));
             await _context.Listings.AddAsync(listing);
-            // SaveChangesAsync is typically called by a Unit of Work / Service layer
+            // SaveChangesAsync is called by UnitOfWork
             return listing;
         }
 
-        public Task<bool> UpdateAsync(ListingItem listing)
+        public Task<bool> UpdateAsync(ListingItem listing) // EF Core tracks changes, UoW saves.
         {
             if (listing == null) throw new ArgumentNullException(nameof(listing));
             _context.Entry(listing).State = EntityState.Modified;
-            // Actual save and concurrency check happens in SaveChangesAsync (UoW / Service layer)
-            return Task.FromResult(true); // Indicates marking for update was successful
+            return Task.FromResult(true);
         }
 
         public async Task<List<ListingItem>> FindAsync(Expression<Func<ListingItem, bool>> predicate, int skip, int limit)
@@ -46,12 +45,7 @@ using System.Threading.Tasks;
             if (predicate == null) throw new ArgumentNullException(nameof(predicate));
             if (skip < 0) throw new ArgumentOutOfRangeException(nameof(skip));
             if (limit <= 0) throw new ArgumentOutOfRangeException(nameof(limit));
-
-            return await _context.Listings
-                                 .Where(predicate)
-                                 .Skip(skip)
-                                 .Take(limit)
-                                 .ToListAsync();
+            return await _context.Listings.Where(predicate).Skip(skip).Take(limit).ToListAsync();
         }
 
         public async Task<ListingItem?> GetByIdAndStatusAsync(string id, string status)

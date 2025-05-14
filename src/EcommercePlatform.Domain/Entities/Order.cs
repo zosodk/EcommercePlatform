@@ -10,7 +10,7 @@
         public string SellerId { get; set; } = string.Empty; // Denormalized for easier querying if needed, or just from items
         public List<OrderItemInfo> Items { get; set; } = new List<OrderItemInfo>(); // Owned collection
         public decimal TotalAmount { get; set; }
-        public string Currency { get; set; } = "USD";
+        public string Currency { get; set; } = "DKK";
         public string OrderStatus { get; set; } = string.Empty; // E.g., "PendingPayment", "Paid", "Shipped", "Delivered", "Cancelled"
         public Address? ShippingAddressSnapshot { get; set; } // Snapshot of shipping address, owned type
         public PaymentDetails? PaymentInfo { get; set; } // Owned type
