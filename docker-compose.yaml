@@ -87,8 +87,6 @@ services:
     environment:
       - MINIO_ROOT_USER=minio_access_key # Should match AWS__AccessKeyID
       - MINIO_ROOT_PASSWORD=minio_secret_key # Should match AWS__SecretAccessKey
-      # - MINIO_DEFAULT_BUCKETS=ecommerce-bucket 
-      - # Optionally create bucket on startup - HAS BEEN IN DEVENV
     command: server /data --console-address ":9001"
     volumes:
       - minio_data:/data # Persist MinIO data
