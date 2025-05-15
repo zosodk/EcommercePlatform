@@ -178,6 +178,153 @@ This database solution provides a robust, flexible, and scalable foundation for 
 * An IDE like JetBrains Rider or Visual Studio 2022+
 * Git
 
+## Running with Docker Compose
+
+### Prerequisites
+Before running the application, ensure you have:
+- Docker Engine installed
+- Docker Compose installed
+
+### Available Services
+The application consists of several services:
+- ASP.NET Core API (port 8080)
+- MongoDB database (port 27017)
+- Redis cache (port 6379)
+- MinIO storage (API port 9000, Console port 9001)
+
+### Starting the Application
+1. Clone the repository
+2. Navigate to the root directory containing docker-compose.yaml
+3. Start all services:
+   `docker-compose up -d`
+
+### Accessing Services
+- API: http://localhost:8080
+- API Documentation: http://localhost:8080/swagger
+- MinIO Console: http://localhost:9001 ("S3BucketName": "ecommerce-bucket", // Ensure this bucket exists)
+
+### Basic Commands
+- View running services:
+  `docker-compose ps`
+- View service logs:
+  `docker-compose logs -f`
+- Stop all services:
+  `docker-compose down`
+- Rebuild and restart API:
+  `docker-compose build ecommerce-api`
+  `docker-compose up -d`
+
+### Data Persistence
+Data is automatically persisted in Docker volumes:
+- MongoDB data
+- Redis cache
+- MinIO storage files
+
+### Troubleshooting
+If services fail to start:
+1. Check service status with `docker-compose ps`
+2. View logs with `docker-compose logs [service-name]`
+3. Restart specific service with `docker-compose restart [service-name]`
+
+Available service names:
+- ecommerce-api
+- mongodb
+- redis
+- minio
+
+## API Documentation
+
+### Available Endpoints
+
+#### Listings
+- GET /api/listings/{id}
+    - Gets a specific listing by ID
+    - Required Path Parameter: id (string)
+
+- POST /api/listings
+    - Creates a new listing
+    - Required fields: title, description, price, currency
+
+#### Orders
+- POST /api/orders
+    - Places a new order
+    - Required fields:
+        - buyerId (string)
+        - listingId (string)
+        - quantity (number, 1-100)
+        - shippingAddress:
+            - street (3-200 characters)
+            - city (2-100 characters)
+            - postalCode (3-20 characters)
+            - country (2-100 characters)
+
+- GET /api/orders/{id}
+    - Gets order details
+    - Required Path Parameter: id (string)
+
+#### Users
+- GET /api/users/{id}
+    - Gets user profile information
+    - Required Path Parameter: id (string)
+
+#### Reviews
+- POST /api/reviews
+    - Creates a product review
+    - Required fields: orderId, rating (1-5), comment
+
+#### Health Check
+- GET /health
+    - Returns API health status
+
+### Authentication
+All endpoints require Bearer token authentication:
+- Header: Authorization
+- Value: Bearer {your_access_token}
+
+### Response Codes
+- 200: Success
+- 201: Created
+- 400: Bad Request
+- 401: Unauthorized
+- 403: Forbidden
+- 404: Not Found
+- 409: Conflict
+- 500: Internal Server Error
+
+### Query Parameters
+List endpoints support:
+- page: Page number (default: 1)
+- limit: Items per page (default: 10, max: 100)
+- sort: Sort field (example: "createdAt:desc")
+- search: Search term
+- filter: Filter criteria
+
+### Rate Limits
+- 100 requests per minute per IP
+- 1000 requests per hour per API key
+
+### Success Response Format
+All successful responses include:
+- success: true/false
+- data: Response data
+- message: Operation description
+
+### Error Response Format
+All error responses include:
+- success: false
+- error:
+    - code: Error code
+    - message: Error description
+    - details: Additional information
+
+### Pagination
+List endpoints return:
+- items: Array of results
+- total: Total number of items
+- page: Current page number
+- limit: Items per page
+- pages: Total number of pages
+
 ### Configuration (for running API locally without Docker Compose for dependencies)
 
 If you are running MongoDB, Redis, and MinIO/S3 separately (not using the provided `docker-compose.yml` for these services), update the connection strings and settings in `EcommercePlatform/src/EcommercePlatform.API/appsettings.Development.json`:
@@ -198,6 +345,7 @@ If you are running MongoDB, Redis, and MinIO/S3 separately (not using the provid
     "Region": "us-east-1" // Placeholder, adjust for actual S3
   }
 }
+
 Running the API Application Locally (without Docker for the API itself)Clone the repository:git clone <repository-url>
 cd EcommercePlatform
 Ensure external services (MongoDB, Redis, MinIO) are running and accessible according to your appsettings.Development.json. You can use the provided docker-compose up -d mongodb redis minio for this.Navigate to the API project directory:cd src/EcommercePlatform.API
